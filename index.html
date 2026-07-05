@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Congenital Recessive Disorder Evaluation</title>
+
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>Congenital Recessive Disorder Evaluation Questionnaire</h1>
+
+      <div id="metaBlock">
+        <button
+          id="resetBtn"
+          style="
+            margin-top: 10px;
+            background: #e74c3c;
+            color: white;
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+          "
+        >
+          Reset Case
+        </button>
+        <button id="saveBtn" class="primaryButton">Save Evaluation</button>
+        <div class="metaRow">
+          <label>Disease</label>
+          <input type="text" id="disease" />
+        </div>
+
+        <div class="metaRow">
+          <label>Gene</label>
+          <input type="text" id="gene" />
+        </div>
+
+        <div class="metaRow">
+          <label>Variant</label>
+          <input type="text" id="variant" />
+        </div>
+
+        <div class="metaRow">
+          <label>Reviewer</label>
+          <input type="text" id="reviewer" />
+        </div>
+
+        <div class="metaRow">
+          <label>Date</label>
+          <input type="date" id="date" />
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 20px; align-items: flex-start">
+        <!-- MAIN QUESTIONNAIRE -->
+        <div style="flex: 1">
+          <div id="questionnaire"></div>
+        </div>
+
+        <!-- SCORES PANEL -->
+        <aside
+          id="scores"
+          style="
+            width: 220px;
+            background: #eef5ff;
+            padding: 15px;
+            border-radius: 8px;
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+          "
+        >
+          <h2>Scores</h2>
+
+          <p>
+            Clinical Severity:
+            <span id="severityScore">0</span>
+          </p>
+
+          <p>
+            Pathogenicity Evidence:
+            <span id="evidenceScore">0</span>
+          </p>
+
+          <p>
+            Screening Utility:
+            <span id="utilityScore">0</span>
+          </p>
+
+          <hr />
+
+          <p class="overall">
+            Priority Score:
+            <span id="overallScore">0</span>
+          </p>
+
+          <hr />
+
+          <p>Completion</p>
+
+          <div class="progress-container">
+            <div id="progressBar"></div>
+          </div>
+
+          <p id="progressText">0%</p>
+        </aside>
+      </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/questions.js"></script>
+    <script src="js/scoring.js"></script>
+    <script src="js/script.js"></script>
+  </body>
+</html>
