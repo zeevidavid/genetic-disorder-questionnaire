@@ -11,7 +11,24 @@
   </head>
 
   <body>
-    <div class="container">
+    <div id="loginScreen" class="login-screen">
+      <h2>Genetic Disorder Questionnaire</h2>
+
+      <div class="login-box">
+        <label>Username</label>
+        <input type="text" id="username" />
+
+        <label>Password</label>
+        <input type="password" id="password" />
+
+        <button id="loginBtn">Sign In</button>
+
+        <p id="loginError" style="color: red"></p>
+      </div>
+    </div>
+
+    <!-- APP (hidden until login) -->
+    <div id="app" style="display: none">
       <h1>Congenital Recessive Disorder Evaluation Questionnaire</h1>
 
       <div id="metaBlock">
@@ -29,6 +46,7 @@
         >
           Reset Case
         </button>
+        <button id="logoutBtn" class="secondaryButton">Logout</button>
         <button id="saveBtn" class="primaryButton">Save Evaluation</button>
         <div class="metaRow">
           <label>Disease</label>
@@ -47,7 +65,7 @@
 
         <div class="metaRow">
           <label>Reviewer</label>
-          <input type="text" id="reviewer" />
+          <span id="reviewerDisplay"></span>
         </div>
 
         <div class="metaRow">

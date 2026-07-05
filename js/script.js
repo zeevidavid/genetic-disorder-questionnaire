@@ -1,3 +1,62 @@
+function isLoggedIn() {
+  return !!sessionStorage.getItem("reviewer");
+}
+
+function requireLogin() {
+  if (!isLoggedIn()) {
+    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("app").style.display = "none";
+
+    return false;
+  }
+
+  return true;
+}
+
+window.addEventListener("load", () => {
+  if (isLoggedIn()) {
+    const reviewer = sessionStorage.getItem("reviewer");
+
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("app").style.display = "block";
+
+    const el = document.getElementById("reviewerDisplay");
+    if (el) el.textContent = reviewer;
+
+    function initApp() {
+      // Prevent double-binding (important when login/logout happens)
+      if (window.__appInitialized) return;
+      window.__appInitialized = true;
+
+      // Logout
+      const logoutBtn = document.getElementById("logoutBtn");
+      if (logoutBtn) {
+        logoutBtn.addEventListener("click", logout);
+      }
+
+      // Save
+      const saveBtn = document.getElementById("saveBtn");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", saveEvaluation);
+      }
+
+      // Reset
+      const resetBtn = document.getElementById("resetBtn");
+      if (resetBtn) {
+        resetBtn.addEventListener("click", resetCase);
+      }
+
+      console.log("App initialized");
+    }
+
+    // optional: initialize app
+    if (typeof initApp === "function") initApp();
+  } else {
+    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("app").style.display = "none";
+  }
+});
+
 const API_URL =
   "https://script.google.com/macros/s/AKfycbzsI9Odp7lF4fVrWNyalh5l4d-owgRu9YkvBjVojTVOvaqfntdpByZmbVSfHihQdCqN/exec";
 
@@ -17,6 +76,60 @@ const STORAGE_KEY = "genetics_questionnaire_draft";
  * STATE: stores all answers
  */
 const answers = {};
+
+async function login() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value.trim();
+
+  const errorBox = document.getElementById("loginError");
+
+  errorBox.textContent = "";
+
+  if (!username || !password) {
+    errorBox.textContent = "Please enter username and password";
+    return;
+  }
+
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "login",
+        username,
+        password,
+      }),
+    });
+
+    const text = await res.text();
+    console.log("RAW RESPONSE:", text);
+
+    const data = JSON.parse(text);
+
+    if (data.success) {
+      sessionStorage.setItem("reviewer", data.reviewer);
+      sessionStorage.setItem("role", data.role || "");
+
+      const reviewerDisplay = document.getElementById("reviewerDisplay");
+      if (reviewerDisplay) {
+        reviewerDisplay.textContent = data.reviewer;
+      }
+
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("app").style.display = "block";
+
+      if (typeof initApp === "function") {
+        initApp();
+      }
+
+      console.log("Login successful:", data.reviewer);
+    } else {
+      errorBox.textContent = data.error || "Invalid credentials";
+    }
+  } catch (err) {
+    console.error(err);
+    errorBox.textContent = "Server error. Please try again.";
+  }
+}
 
 function getSectionProgress(sectionName) {
   let total = 0;
@@ -371,7 +484,7 @@ function loadDraft() {
     document.getElementById("disease").value = data.meta.disease || "";
     document.getElementById("gene").value = data.meta.gene || "";
     document.getElementById("variant").value = data.meta.variant || "";
-    document.getElementById("reviewer").value = data.meta.reviewer || "";
+    //document.getElementById("reviewer").value = data.meta.reviewer || "";
     document.getElementById("date").value = data.meta.date || "";
   }
 
@@ -434,7 +547,7 @@ function buildSubmission() {
 
     variant: document.getElementById("variant").value.trim(),
 
-    reviewer: document.getElementById("reviewer").value.trim(),
+    //reviewer: document.getElementById("reviewer").value.trim(),
 
     reviewDate: document.getElementById("date").value,
 
@@ -454,8 +567,10 @@ function buildSubmission() {
   };
 }
 
-async function submitEvaluation() {
+async function saveEvaluation() {
+  if (!requireLogin()) return;
   const payload = buildSubmission();
+  payload.action = "submit";
 
   try {
     const response = await fetch(API_URL, {
@@ -481,6 +596,32 @@ async function submitEvaluation() {
   }
 }
 
+let lastActivity = Date.now();
+const TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+document.addEventListener("click", () => (lastActivity = Date.now()));
+document.addEventListener("keydown", () => (lastActivity = Date.now()));
+
+setInterval(() => {
+  if (!isLoggedIn()) return;
+
+  if (Date.now() - lastActivity > TIMEOUT) {
+    alert("Session expired. Please log in again.");
+
+    sessionStorage.clear();
+
+    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("app").style.display = "none";
+  }
+}, 60000);
+
+function logout() {
+  sessionStorage.clear();
+
+  document.getElementById("loginScreen").style.display = "flex";
+  document.getElementById("app").style.display = "none";
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const dateField = document.getElementById("date");
 
@@ -490,7 +631,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-document.getElementById("saveBtn").addEventListener("click", submitEvaluation);
+document.getElementById("loginBtn").addEventListener("click", login);
+//document.getElementById("saveBtn").addEventListener("click", () => {
+//  if (!requireLogin()) return;
+
+//  saveEvaluation(); // your existing function
+//});
+//document.getElementById("logoutBtn").addEventListener("click", logout);
 
 function attachMetaAutoSave() {
   ["disease", "gene", "variant", "reviewer", "date"].forEach((id) => {
