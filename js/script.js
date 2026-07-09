@@ -73,16 +73,17 @@ const container = document.getElementById("questionnaire");
 const STORAGE_KEY = "genetics_questionnaire_draft";
 
 /*
- * STATE: stores all answers
+ * STATE: stores all answers and "show" variants and comments
  */
 const answers = {};
+const variantLookup = {};
+const comments = {};
 
 async function login() {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value.trim();
 
   const errorBox = document.getElementById("loginError");
-
   errorBox.textContent = "";
 
   if (!username || !password) {
@@ -105,31 +106,104 @@ async function login() {
 
     const data = JSON.parse(text);
 
-    if (data.success) {
-      sessionStorage.setItem("reviewer", data.reviewer);
-      sessionStorage.setItem("role", data.role || "");
-
-      const reviewerDisplay = document.getElementById("reviewerDisplay");
-      if (reviewerDisplay) {
-        reviewerDisplay.textContent = data.reviewer;
-      }
-
-      document.getElementById("loginScreen").style.display = "none";
-      document.getElementById("app").style.display = "block";
-
-      if (typeof initApp === "function") {
-        initApp();
-      }
-
-      console.log("Login successful:", data.reviewer);
-    } else {
+    if (!data.success) {
       errorBox.textContent = data.error || "Invalid credentials";
+      return;
     }
+
+    // -----------------------------
+    // Store authenticated session
+    // -----------------------------
+    sessionStorage.setItem("reviewer", data.reviewer);
+    sessionStorage.setItem("role", data.role || "");
+
+    // Update reviewer display (if present)
+    const reviewerDisplay = document.getElementById("reviewerDisplay");
+    if (reviewerDisplay) {
+      reviewerDisplay.textContent = data.reviewer;
+    }
+
+    // Show application
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("app").style.display = "block";
+
+    // -----------------------------
+    // Fresh evaluation
+    // -----------------------------
+    localStorage.removeItem(STORAGE_KEY);
+
+    await loadVariants();
+
+    resetCase();
+
+    // Initialize application (only once)
+    if (typeof initApp === "function") {
+      initApp();
+    }
+
+    // Put cursor on Variant selector
+    document.getElementById("variant")?.focus();
+
+    console.log("Login successful:", data.reviewer);
   } catch (err) {
     console.error(err);
     errorBox.textContent = "Server error. Please try again.";
   }
 }
+
+async function loadVariants() {
+  const select = document.getElementById("variant");
+
+  select.innerHTML = '<option value="">Select a variant...</option>';
+
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "variants",
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error);
+    }
+
+    data.variants.forEach((v) => {
+      // Key lookup by MutID
+      variantLookup[v.mutID] = v;
+
+      const option = document.createElement("option");
+
+      option.value = v.mutID;
+
+      option.textContent = v.variant;
+
+      select.appendChild(option);
+    });
+  } catch (err) {
+    console.error(err);
+
+    select.innerHTML = '<option value="">Unable to load variants</option>';
+  }
+}
+
+document.getElementById("variant").addEventListener("change", function () {
+  const v = variantLookup[this.value];
+
+  if (!v) {
+    document.getElementById("gene").value = "";
+    document.getElementById("disease").value = "";
+
+    return;
+  }
+
+  document.getElementById("gene").value = v.gene;
+  document.getElementById("disease").value = v.disease;
+
+  saveDraft();
+});
 
 function getSectionProgress(sectionName) {
   let total = 0;
@@ -177,45 +251,92 @@ function getSectionKey(sectionName) {
   return null;
 }
 
+function createScale(question) {
+  const scaleContainer = document.createElement("div");
+  scaleContainer.className = "rubric";
+
+  question.rubric.forEach((item) => {
+    const row = document.createElement("label");
+    row.className = "rubricRow";
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = question.id;
+    radio.value = item.score;
+
+    radio.addEventListener("change", () => {
+      answers[question.id] = item.score;
+
+      updateScores();
+      updateGlobalProgress();
+      checkAutoAdvance();
+      saveDraft();
+
+      Object.values(sectionRegistry).forEach((section) => {
+        section.updateHeader();
+      });
+    });
+
+    const score = document.createElement("span");
+    score.className = "rubricScore";
+    score.textContent = item.score;
+
+    const text = document.createElement("span");
+    text.className = "rubricLabel";
+    text.textContent = item.label;
+
+    row.appendChild(radio);
+    row.appendChild(score);
+    row.appendChild(text);
+
+    scaleContainer.appendChild(row);
+  });
+
+  return scaleContainer;
+}
+
 /*
  * UPDATE SCORES
  */
 function updateScores() {
-  let sectionTotals = {
-    severity: { sum: 0, total: 0 },
-    evidence: { sum: 0, total: 0 },
-    utility: { sum: 0, total: 0 },
+  const sectionTotals = {
+    severity: { sum: 0, answered: 0 },
+    evidence: { sum: 0, answered: 0 },
+    utility: { sum: 0, answered: 0 },
   };
 
   questionnaire.forEach((q) => {
     const key = getSectionKey(q.section);
     if (!key) return;
 
-    sectionTotals[key].total++;
-
     const value = answers[q.id];
 
-    if (value) {
-      sectionTotals[key].sum += parseInt(value);
+    if (value !== undefined && value !== null) {
+      sectionTotals[key].sum += Number(value);
+      sectionTotals[key].answered++;
     }
   });
 
-  function avg(sum, total) {
-    if (total === 0) return 0;
-    return sum / total;
+  function average(section) {
+    if (section.answered === 0) return 0;
+    return section.sum / section.answered;
   }
 
-  const severity = avg(
-    sectionTotals.severity.sum,
-    sectionTotals.severity.total,
-  );
+  function normalize(avg4Point) {
+    // No answers yet
+    if (avg4Point === 0) return 0;
 
-  const evidence = avg(
-    sectionTotals.evidence.sum,
-    sectionTotals.evidence.total,
-  );
+    // Convert 1–4 scale to 0–10
+    return ((avg4Point - 1) / 3) * 10;
+  }
 
-  const utility = avg(sectionTotals.utility.sum, sectionTotals.utility.total);
+  const severityAvg = average(sectionTotals.severity);
+  const evidenceAvg = average(sectionTotals.evidence);
+  const utilityAvg = average(sectionTotals.utility);
+
+  const severity = normalize(severityAvg);
+  const evidence = normalize(evidenceAvg);
+  const utility = normalize(utilityAvg);
 
   const priorityScore = 0.45 * severity + 0.35 * evidence + 0.2 * utility;
 
@@ -231,64 +352,6 @@ function updateScores() {
 
   if (scoreElements.overall)
     scoreElements.overall.textContent = priorityScore.toFixed(2);
-}
-
-/*
- * CREATE SCALE
- */
-function createScale(question) {
-  const scaleContainer = document.createElement("div");
-  scaleContainer.className = "scale";
-
-  const labelRow = document.createElement("div");
-  labelRow.className = "scaleLabels";
-
-  const low = document.createElement("span");
-  low.textContent = question.lowLabel;
-
-  const high = document.createElement("span");
-  high.textContent = question.highLabel;
-
-  labelRow.appendChild(low);
-  labelRow.appendChild(high);
-
-  scaleContainer.appendChild(labelRow);
-
-  const radioRow = document.createElement("div");
-  radioRow.className = "radioRow";
-
-  for (let i = 1; i <= 10; i++) {
-    const label = document.createElement("label");
-
-    const radio = document.createElement("input");
-
-    radio.type = "radio";
-    radio.name = question.id;
-    radio.value = i;
-
-    radio.addEventListener("change", () => {
-      answers[question.id] = radio.value;
-
-      updateScores();
-      updateGlobalProgress();
-      checkAutoAdvance();
-      saveDraft();
-
-      // ⭐ THIS is the missing piece
-      Object.values(sectionRegistry).forEach((section) => {
-        section.updateHeader();
-      });
-    });
-
-    label.appendChild(radio);
-    label.append(" " + i);
-
-    radioRow.appendChild(label);
-  }
-
-  scaleContainer.appendChild(radioRow);
-
-  return scaleContainer;
 }
 
 /*
@@ -314,10 +377,25 @@ function createQuestion(question) {
   }
 
   if (question.comments) {
-    const comments = document.createElement("textarea");
-    comments.rows = 3;
-    comments.placeholder = "Comments (optional)";
-    div.appendChild(comments);
+    const textarea = document.createElement("textarea");
+
+    textarea.rows = 3;
+    textarea.placeholder = "Comments (optional)";
+    textarea.dataset.question = question.id;
+
+    // Restore draft (if one exists)
+    if (comments[question.id]) {
+      textarea.value = comments[question.id];
+    }
+
+    // Keep comments object up to date
+    textarea.addEventListener("input", () => {
+      comments[question.id] = textarea.value.trim();
+
+      saveDraft();
+    });
+
+    div.appendChild(textarea);
   }
 
   return div;
@@ -461,13 +539,13 @@ function updateGlobalProgress() {
 function saveDraft() {
   const data = {
     meta: {
-      disease: document.getElementById("disease")?.value || "",
-      gene: document.getElementById("gene")?.value || "",
-      variant: document.getElementById("variant")?.value || "",
-      reviewer: document.getElementById("reviewer")?.value || "",
+      variant: document.getElementById("variant")?.value || "", // MutID
       date: document.getElementById("date")?.value || "",
     },
-    answers: answers,
+
+    answers: { ...answers },
+
+    comments: { ...comments },
   };
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -481,16 +559,25 @@ function loadDraft() {
 
   // restore metadata
   if (data.meta) {
-    document.getElementById("disease").value = data.meta.disease || "";
-    document.getElementById("gene").value = data.meta.gene || "";
-    document.getElementById("variant").value = data.meta.variant || "";
-    //document.getElementById("reviewer").value = data.meta.reviewer || "";
     document.getElementById("date").value = data.meta.date || "";
+
+    if (data.meta.variant) {
+      const select = document.getElementById("variant");
+
+      select.value = data.meta.variant;
+
+      // Populate Disease/Gene from the lookup
+      select.dispatchEvent(new Event("change"));
+    }
   }
 
   // restore answers
   if (data.answers) {
     Object.assign(answers, data.answers);
+  }
+
+  if (data.comments) {
+    Object.assign(comments, data.comments);
   }
 }
 
@@ -509,45 +596,89 @@ function restoreAnswerUI() {
 }
 
 function resetCase() {
-  // 1. Clear local state
+  // 1. Clear answers
   Object.keys(answers).forEach((k) => delete answers[k]);
 
-  // 2. Clear metadata fields
-  ["disease", "gene", "variant", "reviewer", "date"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.value = "";
-  });
+  // 2. Clear comments
+  Object.keys(comments).forEach((k) => delete comments[k]);
 
-  // 3. Clear radio buttons
-  document.querySelectorAll("input[type=radio]").forEach((r) => {
+  // 3. Reset Variant dropdown
+  const variant = document.getElementById("variant");
+  if (variant) {
+    variant.selectedIndex = 0;
+  }
+
+  // 4. Clear automatically populated fields
+  document.getElementById("disease").value = "";
+  document.getElementById("gene").value = "";
+
+  // 5. Reset today's date
+  const today = new Date().toISOString().split("T")[0];
+  document.getElementById("date").value = today;
+
+  // 6. Clear radio buttons
+  document.querySelectorAll('input[type="radio"]').forEach((r) => {
     r.checked = false;
   });
 
-  // 4. Clear localStorage
-  localStorage.removeItem("genetics_questionnaire_draft");
+  // 7. Clear comment textareas
+  document.querySelectorAll("textarea").forEach((t) => {
+    t.value = "";
+  });
 
-  // 5. Reset scores + progress
+  // 8. Remove saved draft
+  localStorage.removeItem(STORAGE_KEY);
+
+  // 9. Reset section auto-advance
+  Object.keys(sectionState).forEach((k) => {
+    sectionState[k] = false;
+  });
+
+  // 10. Close every section
+  Object.values(sectionRegistry).forEach((section) => {
+    section.closeSection();
+  });
+
+  // 11. Open the first section
+  const firstSection = Object.keys(sectionRegistry)[0];
+  if (firstSection) {
+    sectionRegistry[firstSection].openSection();
+  }
+
+  // 12. Refresh UI
   updateScores();
   updateGlobalProgress();
 
-  // 6. Reset section states (auto-advance tracking)
-  if (typeof sectionState !== "undefined") {
-    Object.keys(sectionState).forEach((k) => (sectionState[k] = false));
-  }
+  Object.values(sectionRegistry).forEach((section) => {
+    section.updateHeader();
+  });
 
-  // 7. Re-save empty state (optional but clean)
-  saveDraft();
+  // 13. Focus Variant selector
+  variant?.focus();
 }
 
 function buildSubmission() {
+  const selected = variantLookup[document.getElementById("variant").value];
+  const commentText = Object.entries(comments)
+    .filter(([id, text]) => text && text.trim() !== "")
+    .map(([id, text]) => `${id}: ${text}`)
+    .join("; ");
+
   return {
-    disease: document.getElementById("disease").value.trim(),
+    variant: selected ? selected.variant : "",
 
-    gene: document.getElementById("gene").value.trim(),
+    mutID: selected ? selected.mutID : "",
 
-    variant: document.getElementById("variant").value.trim(),
+    dyDis: selected ? selected.dyDis : "",
 
-    //reviewer: document.getElementById("reviewer").value.trim(),
+    dyMut: selected ? selected.dyMut : "",
+
+    disease: selected ? selected.disease : "",
+
+    gene: selected ? selected.gene : "",
+
+    // Reviewer comes from the login session
+    reviewer: sessionStorage.getItem("reviewer") || "",
 
     reviewDate: document.getElementById("date").value,
 
@@ -564,6 +695,8 @@ function buildSubmission() {
     ),
 
     answers: { ...answers },
+
+    comments: commentText,
   };
 }
 
@@ -587,7 +720,7 @@ async function saveEvaluation() {
       );
 
       // Optional:
-      // resetCase();
+      resetCase();
     } else {
       alert("Submission failed:\n" + result.error);
     }
@@ -650,12 +783,29 @@ function attachMetaAutoSave() {
   });
 }
 
-renderQuestionnaire();
-loadDraft();
-restoreAnswerUI();
-attachMetaAutoSave();
-initScoreElements();
-updateScores();
-updateGlobalProgress();
+fetch(API_URL, {
+  method: "POST",
+  body: JSON.stringify({ action: "variants" }),
+})
+  .then((r) => r.json())
+  .then(console.log);
+
+async function initializeQuestionnaire() {
+  renderQuestionnaire();
+
+  await loadVariants();
+
+  //loadDraft();
+
+  restoreAnswerUI();
+
+  attachMetaAutoSave();
+
+  initScoreElements();
+  updateScores();
+  updateGlobalProgress();
+}
+
+initializeQuestionnaire();
 
 document.getElementById("resetBtn")?.addEventListener("click", resetCase);

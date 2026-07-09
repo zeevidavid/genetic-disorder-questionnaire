@@ -50,17 +50,20 @@
         <button id="saveBtn" class="primaryButton">Save Evaluation</button>
         <div class="metaRow">
           <label>Disease</label>
-          <input type="text" id="disease" />
+          <input type="text" id="disease" readonly />
         </div>
 
         <div class="metaRow">
           <label>Gene</label>
-          <input type="text" id="gene" />
+          <input type="text" id="gene" readonly />
         </div>
 
         <div class="metaRow">
           <label>Variant</label>
-          <input type="text" id="variant" />
+
+          <select id="variant">
+            <option value="">Loading variants...</option>
+          </select>
         </div>
 
         <div class="metaRow">
@@ -131,7 +134,7 @@
     </div>
 
     <script src="js/config.js"></script>
-    <script src="js/questions.js"></script>
+    <script src="js/questions_v2.js"></script>
     <script src="js/scoring.js"></script>
     <script src="js/script.js"></script>
   </body>

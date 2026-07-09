@@ -1,90 +1,124 @@
 body {
-  font-family: Arial;
-
+  font-family: Arial, sans-serif;
   background: #f3f5f8;
-
   margin: 40px;
 }
 
+/* ==========================================================
+   MAIN LAYOUT
+========================================================== */
+
 .container {
   overflow: visible;
-
   max-width: 1200px;
-
   margin: auto;
-
   background: white;
-
   padding: 30px;
-
   border-radius: 10px;
-
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
 }
 
+/* ==========================================================
+   QUESTION CARDS
+========================================================== */
+
 .question {
   margin-top: 30px;
-
+  margin-bottom: 30px;
   padding-bottom: 20px;
-
   border-bottom: 1px solid #ddd;
 }
 
 .question h3 {
-  margin-bottom: 5px;
-}
-
-.scale {
-  margin-top: 15px;
-}
-
-.scale label {
-  margin-right: 15px;
-
-  font-weight: normal;
-}
-
-.scaleLabels {
-  display: flex;
-
-  justify-content: space-between;
-
-  font-size: 12px;
-
-  color: #666;
-
   margin-bottom: 8px;
-}
-
-.radioRow {
-  display: flex;
-
-  justify-content: space-between;
-
-  margin-bottom: 10px;
+  color: #1f2937;
 }
 
 .helpText {
-  color: #555;
-
+  color: #666;
   font-size: 13px;
-
   font-style: italic;
-
   margin-top: 8px;
-
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
-textarea {
+.question textarea {
   width: 100%;
-
   box-sizing: border-box;
-
   resize: vertical;
-
   padding: 8px;
+  margin-top: 12px;
 }
+
+/* ==========================================================
+   RUBRIC
+========================================================== */
+
+.rubric {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.rubricRow {
+  display: grid;
+  grid-template-columns: 30px 40px 1fr;
+
+  align-items: center;
+
+  padding: 10px 14px;
+
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.rubricRow:hover {
+  background: #f6faff;
+  border-color: #4a90e2;
+}
+
+.rubricRow input[type="radio"] {
+  margin: 0;
+}
+
+.rubricRow:has(input:checked) {
+  background: #dfefff;
+  border-color: #2b7cff;
+}
+
+.rubricScore {
+  display: inline-flex;
+
+  width: 26px;
+  height: 26px;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #eef3ff;
+
+  font-weight: bold;
+
+  color: #2c3e50;
+}
+
+.rubricLabel {
+  color: #333;
+  line-height: 1.4;
+}
+
+/* ==========================================================
+   SECTIONS
+========================================================== */
 
 .sectionCard {
   margin-top: 25px;
@@ -98,10 +132,15 @@ textarea {
   position: sticky;
   top: 0;
   z-index: 5;
+
   background: #f0f3f8;
+
   padding: 12px 15px;
+
   font-weight: bold;
+
   cursor: pointer;
+
   border-bottom: 1px solid #ddd;
 }
 
@@ -113,17 +152,22 @@ textarea {
   padding: 15px;
 }
 
-.sectionContent.open {
-  display: block;
-}
+/* ==========================================================
+   SCORE PANEL
+========================================================== */
 
 #scores {
-  position: fixed;
-  right: 20px;
-  top: 100px;
-  width: 220px;
+  width: 240px;
+
+  position: sticky;
+  top: 170px;
+
+  align-self: flex-start;
+
   background: #eef5ff;
+
   padding: 15px;
+
   border-radius: 8px;
 }
 
@@ -141,7 +185,6 @@ textarea {
   width: 0%;
   background: #2ecc71;
   transition: width 0.3s ease;
-  border-radius: 6px;
 }
 
 #progressText {
@@ -150,12 +193,20 @@ textarea {
   margin-top: 5px;
 }
 
+/* ==========================================================
+   METADATA BAR
+========================================================== */
+
 #metaBlock {
   position: sticky;
   top: 0;
+  width: 120px
   z-index: 100;
-  background: #ffffff;
+
+  background: white;
+
   padding: 10px;
+
   border-bottom: 2px solid #ddd;
 }
 
@@ -175,6 +226,10 @@ textarea {
   flex: 1;
   padding: 4px;
 }
+
+/* ==========================================================
+   BUTTONS
+========================================================== */
 
 .primaryButton {
   background: #2e7d32;
